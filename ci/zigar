@@ -1,0 +1,4 @@
+#!/bin/sh
+# Drop-in GNU ar for cross builds: the macOS /usr/bin/ar produces Mach-O
+# archives that ld.lld cannot read (aws-lc symbols then appear undefined).
+exec /Users/chen/tools/zig/zig ar "$@"

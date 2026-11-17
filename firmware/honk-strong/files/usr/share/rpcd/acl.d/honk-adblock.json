@@ -1,0 +1,31 @@
+{
+	"honk-adblock": {
+		"description": "Manage custom ad-block subscriptions for enhanced honk",
+		"read": {
+			"ubus": {
+				"honk-adblock": [
+					"list",
+					"status"
+				]
+			},
+			"uci": [
+				"honk-adblock"
+			]
+		},
+		"write": {
+			"ubus": {
+				"honk-adblock": [
+					"add",
+					"remove",
+					"set",
+					"set_global",
+					"refresh",
+					"apply_rule"
+				]
+			},
+			"uci": [
+				"honk-adblock"
+			]
+		}
+	}
+}

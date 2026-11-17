@@ -1,0 +1,209 @@
+#!/bin/sh
+# rpcd script for honk-dns: mosdns-style DNS split routing.
+# Registers ubus namespace "honk-dns". Settings + rule lists live in UCI; the
+# engine renders them into config.dae managed blocks and SIGHUP-reloads honk.
+
+. /usr/share/libubox/jshn.sh
+. /lib/functions.sh
+
+UCI_CONFIG=honk-dns
+ENGINE=/usr/libexec/honk-dns/dns-engine.sh
+
+# This firmware's jshn json_add_boolean renders non-numeric values (e.g. the
+# string "true") as false; only 1/0 work. Normalize all booleans through here.
+jbool() {
+	case "$1" in
+		1|true|TRUE|yes|on) echo 1 ;;
+		*) echo 0 ;;
+	esac
+}
+
+emit() {
+	local ok=$1 msg=$2
+	[ "$ok" = true ] && ok=1 || ok=0
+	json_init
+	json_add_boolean ok "$ok"
+	json_add_string message "$msg"
+	json_dump
+}
+
+json_read_stdin() {
+	local raw
+	raw=$(cat)
+	[ -n "$raw" ] && json_load "$raw" 2>/dev/null
+}
+
+# scalar settings stored in honk-dns.main
+SETTINGS="enabled redirect local_dns remote_dns stream_dns bootstrap fallback apple_optimization dns_leak cache cache_size lazy_cache_ttl reject_type65 ipv6"
+# multi-line rule lists
+LISTS="whitelist blacklist greylist stream_media ddns hosts redirect_list ptr_blacklist"
+
+# defaults, used when a UCI option is absent (important for upgrading old config)
+default_for() {
+	case "$1" in
+		enabled) echo 1 ;;
+		redirect) echo 1 ;;
+		local_dns) echo 'https://223.5.5.5/dns-query' ;;
+		remote_dns) echo 'https://8.8.8.8/dns-query' ;;
+		stream_dns) echo '' ;;
+		bootstrap) echo '119.29.29.29:53' ;;
+		fallback) echo remote ;;
+		apple_optimization) echo 0 ;;
+		dns_leak) echo 0 ;;
+		cache) echo 1 ;;
+		cache_size) echo 8000 ;;
+		lazy_cache_ttl) echo 86400 ;;
+		reject_type65) echo 1 ;;
+		ipv6) echo 0 ;;
+		*) echo '' ;;
+	esac
+}
+
+get_opt() {
+	local key=$1 val
+	val=$(uci -q get "$UCI_CONFIG.main.$key" 2>/dev/null)
+	[ -n "$val" ] && printf '%s' "$val" || default_for "$key"
+}
+
+is_switch() {
+	case "$1" in
+		enabled|redirect|apple_optimization|dns_leak|cache|reject_type65|ipv6) return 0 ;;
+		*) return 1 ;;
+	esac
+}
+
+# ---- get_settings: everything the UI needs in one call --------------------
+m_get_settings() {
+	local k v
+	json_init
+	for k in $SETTINGS; do
+		v=$(get_opt "$k")
+		if is_switch "$k"; then
+			case "$v" in 1|true|on|yes) v=1 ;; *) v=0 ;; esac
+			json_add_boolean "$k" "$v"
+		elif [ "$k" = cache_size ] || [ "$k" = lazy_cache_ttl ]; then
+			json_add_int "$k" "$v"
+		else
+			json_add_string "$k" "$v"
+		fi
+	done
+	# rule lists
+	for k in $LISTS; do
+		v=$(uci -q get "$UCI_CONFIG.main.$k" 2>/dev/null)
+		json_add_string "$k" "${v:-}"
+	done
+	# runtime status
+	local out running rules=0 pid
+	out=$("$ENGINE" status 2>&1); eval "$out" 2>/dev/null
+	pid=$(pgrep -f 'honk-core' 2>/dev/null | head -1)
+	if [ -n "$pid" ]; then running=true; else running=false; fi
+	json_add_boolean running "$(jbool "$running")"
+	json_add_int applied_rules "${rules:-0}"
+	json_add_string pid "${pid:-}"
+	json_dump
+}
+
+# ---- set_settings: save scalar options ------------------------------------
+m_set_settings() {
+	local k v changed=0
+	json_read_stdin
+	for k in $SETTINGS; do
+		if json_get_type t "$k" 2>/dev/null; then
+			json_get_var v "$k"
+			if is_switch "$k"; then
+				case "$v" in 1|true|on|yes|True) v=1 ;; *) v=0 ;; esac
+			fi
+			uci -q set "$UCI_CONFIG.main.$k=$v" 2>/dev/null && changed=1
+		fi
+	done
+	[ "$changed" -eq 1 ] || { emit false nothing_to_save; return 1; }
+	uci commit "$UCI_CONFIG" || { emit false uci_commit_failed; return 1; }
+	emit true saved
+}
+
+# ---- set_list: save one multi-line rule list ------------------------------
+m_set_list() {
+	local name content
+	json_read_stdin
+	json_get_var name name
+	json_get_var content content
+	[ -n "$name" ] || { emit false name_required; return 1; }
+	case " $LISTS " in *" $name "*) ;; *) { emit false unknown_list; return 1; } ;; esac
+	uci -q set "$UCI_CONFIG.main.$name=$content" || { emit false write_failed; return 1; }
+	uci commit "$UCI_CONFIG" || { emit false uci_commit_failed; return 1; }
+	emit true saved
+}
+
+# ---- apply / status / preview / rollback / validate -----------------------
+m_apply() {
+	local out
+	out=$("$ENGINE" apply 2>&1)
+	case "$out" in
+		applied_reloaded|applied_no_reload) emit true "$out" ;;
+		*) emit false "${out:-apply_failed}" ;;
+	esac
+}
+
+m_status() {
+	local out running rules=0 pid enabled
+	out=$("$ENGINE" status 2>&1); eval "$out" 2>/dev/null
+	pid=$(pgrep -f 'honk-core' 2>/dev/null | head -1)
+	if [ -n "$pid" ]; then running=true; else running=false; fi
+	enabled=$(get_opt enabled)
+	json_init
+	json_add_boolean running "$(jbool "$running")"
+	json_add_int rules "${rules:-0}"
+	json_add_string pid "${pid:-}"
+	case "$enabled" in 1|true|on|yes) enabled=1 ;; *) enabled=0 ;; esac
+	json_add_boolean enabled "$enabled"
+	json_dump
+}
+
+m_preview() {
+	local out
+	out=$("$ENGINE" preview 2>&1)
+	json_init
+	json_add_string preview "$out"
+	json_dump
+}
+
+m_rollback() {
+	local out
+	out=$("$ENGINE" rollback 2>&1)
+	case "$out" in
+		rolled_back) emit true "$out" ;;
+		*) emit false "${out:-rollback_failed}" ;;
+	esac
+}
+
+m_validate() {
+	local out
+	out=$("$ENGINE" validate /etc/honk/config.dae 2>&1)
+	case "$out" in
+		valid) emit true "$out" ;;
+		*) emit false "${out:-invalid}" ;;
+	esac
+}
+
+case "$1" in
+	list)
+		echo '{"get_settings":{},"set_settings":{},"set_list":{"name":"String","content":"String"},"apply":{},"status":{},"preview":{},"rollback":{},"validate":{}}'
+		;;
+	call)
+		cd / || exit 1
+		case "$2" in
+			get_settings) m_get_settings ;;
+			set_settings) m_set_settings ;;
+			set_list)     m_set_list ;;
+			apply)        m_apply ;;
+			status)       m_status ;;
+			preview)      m_preview ;;
+			rollback)     m_rollback ;;
+			validate)     m_validate ;;
+			*) emit false unknown_method; exit 1 ;;
+		esac
+		;;
+	*)
+		exit 2
+		;;
+esac

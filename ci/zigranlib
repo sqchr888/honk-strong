@@ -1,0 +1,3 @@
+#!/bin/sh
+# Drop-in GNU ranlib for cross builds; see ci/zigar.
+exec /Users/chen/tools/zig/zig ranlib "$@"

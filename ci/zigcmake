@@ -1,0 +1,20 @@
+#!/bin/sh
+# CMake wrapper for aarch64-linux-musl cross builds on macOS.
+#
+# Configure mode: inject zig's GNU-format archiver (the macOS /usr/bin/ar
+# writes BSD/Mach-O archives that ld.lld cannot read).
+# Build mode: pass through untouched -- cmake rejects -D and mis-parses
+# --parallel when definitions precede --build.
+HERE=$(cd "$(dirname "$0")" && pwd)
+CMAKE=/Users/chen/tools/cmake-venv/bin/cmake
+
+case " $* " in
+  *" --build "*)
+    exec "$CMAKE" "$@"
+    ;;
+esac
+
+exec "$CMAKE" \
+  -DCMAKE_AR="$HERE/zigar" \
+  -DCMAKE_RANLIB="$HERE/zigranlib" \
+  "$@"

@@ -1,0 +1,31 @@
+{
+	"honk-dns": {
+		"description": "mosdns-style DNS split routing for enhanced honk",
+		"read": {
+			"ubus": {
+				"honk-dns": [
+					"get_settings",
+					"status",
+					"preview",
+					"validate"
+				]
+			},
+			"uci": [
+				"honk-dns"
+			]
+		},
+		"write": {
+			"ubus": {
+				"honk-dns": [
+					"set_settings",
+					"set_list",
+					"apply",
+					"rollback"
+				]
+			},
+			"uci": [
+				"honk-dns"
+			]
+		}
+	}
+}

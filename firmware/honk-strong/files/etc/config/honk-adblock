@@ -1,0 +1,5 @@
+config settings 'main'
+	option enabled '1'
+	option category 'honk-ads'
+	option output '/etc/honk/honk-ads.dat'
+	option format 'auto'

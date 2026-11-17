@@ -1,0 +1,208 @@
+#!/bin/sh
+# rpcd script for honk-adblock: custom, fully user-controllable ad subscriptions.
+# Registers ubus namespace "honk-adblock" with methods driven by the LuCI page.
+
+. /usr/share/libubox/jshn.sh
+. /lib/functions.sh
+
+UCI_CONFIG=honk-adblock
+ENGINE=/usr/libexec/honk-adblock/adblock-engine.sh
+
+# This firmware's jshn json_add_boolean treats any non-numeric value (e.g. the
+# string "true") as false; only 1/0 render correctly. Normalize every boolean
+# through here before handing it to json_add_boolean.
+jbool() {
+	case "$1" in
+		1|true|TRUE|yes|on) echo 1 ;;
+		*) echo 0 ;;
+	esac
+}
+
+emit() {
+	local ok=$1 msg=$2
+	[ "$ok" = true ] && ok=1 || ok=0
+	json_init
+	json_add_boolean ok "$(jbool "$ok")"
+	json_add_string message "$msg"
+	json_dump
+}
+
+emit_data() {
+	json_init
+	"$@"
+	json_dump
+}
+
+json_read_stdin() {
+	local raw
+	raw=$(cat)
+	[ -n "$raw" ] && json_load "$raw" 2>/dev/null
+}
+
+# ---- methods ---------------------------------------------------------------
+
+m_list() {
+	local count=0
+	json_init
+	json_add_array sources
+	config_load "$UCI_CONFIG" 2>/dev/null || :
+	config_foreach _list_source source
+	json_close_array
+	local enabled domains bytes
+	enabled=$(uci -q get "$UCI_CONFIG.main.enabled" 2>/dev/null || echo 1)
+	domains=$(awk 'NF && $1 !~ /^#/' /tmp/honk-adblock/merged.txt 2>/dev/null | wc -l | tr -d ' ')
+	bytes=$(wc -c < /etc/honk/honk-ads.dat 2>/dev/null | tr -d ' ')
+	json_add_boolean enabled "$(jbool "$enabled")"
+	json_add_int domains "$domains"
+	json_add_int bytes "$bytes"
+	json_add_string category "$(uci -q get "$UCI_CONFIG.main.category" 2>/dev/null || echo honk-ads)"
+}
+
+_list_source() {
+	local s=$1 name url fmt enabled inline
+	config_get name "$s" name "$s"
+	config_get url "$s" url ""
+	config_get fmt "$s" format auto
+	config_get_bool enabled "$s" enabled 0
+	config_get inline "$s" inline ""
+	json_add_object
+	json_add_string section "$s"
+	json_add_string name "$name"
+	json_add_string url "$url"
+	json_add_string format "$fmt"
+	json_add_boolean enabled "$(jbool "$enabled")"
+	if [ -n "$inline" ]; then json_add_boolean inline 1; else json_add_boolean inline 0; fi
+	json_close_object
+}
+
+m_status() {
+	local pid running enabled bytes
+	pid=$(pgrep -f 'honk-core' 2>/dev/null | head -1)
+	# Explicit if avoids the &&/|| idiom leaving running unset in busybox ash.
+	if [ -n "$pid" ]; then running=true; else running=false; fi
+	enabled=$(uci -q get "$UCI_CONFIG.main.enabled" 2>/dev/null || echo 1)
+	bytes=$(wc -c < /etc/honk/honk-ads.dat 2>/dev/null | tr -d ' ')
+	json_init
+	json_add_boolean running "$(jbool "$running")"
+	json_add_boolean enabled "$(jbool "$enabled")"
+	json_add_int overlay_bytes "$bytes"
+	json_add_string overlay_path /etc/honk/honk-ads.dat
+	json_add_string pid "${pid:-}"
+}
+
+m_add() {
+	local name url fmt inline enabled rc
+	json_read_stdin
+	json_get_var name name
+	json_get_var url url
+	json_get_var fmt format
+	json_get_var inline inline
+	json_get_var enabled enabled
+	[ -n "$name" ] || { emit false name_required; return 1; }
+	[ -n "$url" ] || [ -n "$inline" ] || { emit false source_required; return 1; }
+	[ -n "$fmt" ] || fmt=auto
+	case "$fmt" in auto|hosts|domain|adblock|dnsmasq) ;; *) fmt=auto ;; esac
+
+	local sec
+	sec=$(uci add "$UCI_CONFIG" source) || { emit false uci_add_failed; return 1; }
+	uci -q set "$UCI_CONFIG.$sec.name=$name"
+	[ -n "$url" ] && uci -q set "$UCI_CONFIG.$sec.url=$url"
+	[ -n "$inline" ] && uci -q set "$UCI_CONFIG.$sec.inline=$inline"
+	uci -q set "$UCI_CONFIG.$sec.format=$fmt"
+	uci -q set "$UCI_CONFIG.$sec.enabled=${enabled:-1}"
+	uci commit "$UCI_CONFIG" || { emit false uci_commit_failed; return 1; }
+	emit true added
+}
+
+m_remove() {
+	local section name match="" s getname
+	json_read_stdin
+	json_get_var section section
+	json_get_var name name
+	if [ -z "$section" ] && [ -n "$name" ]; then
+		config_load "$UCI_CONFIG" 2>/dev/null || :
+		config_foreach _find_section source
+		section=$match
+	fi
+	[ -n "$section" ] || { emit false not_found; return 1; }
+	uci -q delete "$UCI_CONFIG.$section" || { emit false delete_failed; return 1; }
+	uci commit "$UCI_CONFIG" || { emit false uci_commit_failed; return 1; }
+	emit true removed
+}
+
+_find_section() {
+	local s=$1 n
+	[ -n "$match" ] && return 0
+	config_get n "$s" name "$s"
+	[ "$n" = "$name" ] && match=$s
+}
+
+m_set() {
+	local section name enabled match="" s n
+	json_read_stdin
+	json_get_var section section
+	json_get_var name name
+	json_get_var enabled enabled
+	if [ -z "$section" ] && [ -n "$name" ]; then
+		config_load "$UCI_CONFIG" 2>/dev/null || :
+		config_foreach _find_section source
+		section=$match
+	fi
+	[ -n "$section" ] || { emit false not_found; return 1; }
+	case "$enabled" in 1|true|on|yes) enabled=1 ;; *) enabled=0 ;; esac
+	uci -q set "$UCI_CONFIG.$section.enabled=$enabled" || { emit false write_failed; return 1; }
+	uci commit "$UCI_CONFIG" || { emit false uci_commit_failed; return 1; }
+	emit true updated
+}
+
+m_set_global() {
+	local enabled
+	json_read_stdin
+	json_get_var enabled enabled
+	case "$enabled" in 1|true|on|yes) enabled=1 ;; *) enabled=0 ;; esac
+	uci -q set "$UCI_CONFIG.main.enabled=$enabled" || { emit false write_failed; return 1; }
+	uci commit "$UCI_CONFIG" || { emit false uci_commit_failed; return 1; }
+	emit true updated
+}
+
+m_refresh() {
+	local out rc=0
+	out=$("$ENGINE" refresh 2>&1); rc=$?
+	case "$out" in
+		reloaded:*|installed_no_honk:*|installed_no_hup:*) emit true "$out" ;;
+		*) emit false "${out:-refresh_failed}" ;;
+	esac
+	return 0
+}
+
+m_apply_rule() {
+	local out
+	out=$("$ENGINE" ensure-rule 2>&1)
+	case "$out" in
+		present|installed) emit true "$out" ;;
+		*) emit false "$out" ;;
+	esac
+}
+
+case "$1" in
+	list)
+		echo '{"list":{},"status":{},"add":{"name":"String","url":"String","format":"String","inline":"String","enabled":"Boolean"},"remove":{"section":"String","name":"String"},"set":{"section":"String","name":"String","enabled":"Boolean"},"set_global":{"enabled":"Boolean"},"refresh":{},"apply_rule":{}}'
+		;;
+	call)
+		cd / || exit 1
+		case "$2" in
+			list)       m_list; json_dump ;;
+			status)     m_status; json_dump ;;
+			add)        m_add ;;
+			remove)     m_remove ;;
+			set)        m_set ;;
+			set_global) m_set_global ;;
+			refresh)    m_refresh ;;
+			apply_rule) m_apply_rule ;;
+			*) emit false unknown_method; exit 1 ;;
+		esac
+		;;
+	*)
+		exit 2
+		;;
+esac
