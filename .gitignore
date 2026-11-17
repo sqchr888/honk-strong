@@ -81,3 +81,11 @@ target-armbench
 # honk-strong: allow the LuCI view directory inside firmware packaging
 !firmware/honk-strong/files/www/luci-static/resources/view/honk/
 !firmware/honk-strong/files/www/luci-static/resources/view/honk/*
+
+# honk-strong: allow base-layer directories inside firmware packaging
+# (the generic "honk/" rule above ignores these; without these exceptions the
+#  12 inlined base scripts are never committed and CI sparse-clone misses them)
+!firmware/honk-strong/files/etc/honk/
+!firmware/honk-strong/files/etc/honk/**
+!firmware/honk-strong/files/usr/share/honk/
+!firmware/honk-strong/files/usr/share/honk/**
