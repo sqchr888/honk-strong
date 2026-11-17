@@ -1,0 +1,6 @@
+Repository: https://github.com/Zakkaus/doona.git
+Commit: 9dcb948976da9f0cc0a77f158edef8998d0df661
+Version: 0.1.0-rc.6
+Build patch SHA256: 7cc1e936a25c116177c90c279156d70cff757556891cd52dfa6ef5c93cc7fb9e
+Build: VITE_OPENWRT_HONK=1 corepack pnpm@11.15.1 build
+Status: OpenWrt same-origin API; mock fallback and mock backend chunk removed
