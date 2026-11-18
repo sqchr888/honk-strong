@@ -79,7 +79,19 @@ function M.read_domains(path)
       if not name and line:match("^%d+%.%d+%.%d+%.%d+%s") then
         name = line:match("^%S+%s+(%S+)")
       end
-      if not name then name = line:match("^([%w%.%-_]+)") end
+      if not name then
+        -- Plain domain, but ONLY if the whole line really is a bare domain.
+        -- A URL/path rule (e.g. "qq.com/livemsg?" or "alicdn.com/*/sdk.js$script")
+        -- means "block one path", not "block the whole host". DNS-level adblock
+        -- cannot express a path, so extracting the leading host here would turn
+        -- it into a suffix rule and kill legit services (mail.qq.com, imap.qq.com,
+        -- all of alicdn.com, ...). Skip such lines rather than over-block.
+        local plain = line:match("^([%w%.%-_]+)")
+        local rest = plain and line:sub(#plain + 1) or ""
+        if plain and (rest == "" or rest:match("^%s")) then
+          name = plain
+        end
+      end
       if name then
         name = name:gsub("^%.+", "")
         if name ~= "" and not name:find("*") and not name:find("%s")
