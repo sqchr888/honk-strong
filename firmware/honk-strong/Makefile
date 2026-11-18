@@ -1,7 +1,7 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=honk-strong
-PKG_VERSION:=0.1.0-beta.6-strong1
+PKG_VERSION:=0.1.0_beta6_strong1
 PKG_RELEASE:=2
 PKG_LICENSE:=GPL-3.0-only
 PKG_LICENSE_FILE:=LICENSE
