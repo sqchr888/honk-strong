@@ -695,7 +695,7 @@ mod tests {
         let blocked = Some(&both[..]);
         assert_eq!(hosts.addresses_for("needle.block.test"), blocked);
         assert_eq!(hosts.addresses_for("x.needle.block.test"), blocked);
-        assert_eq!(hosts.addresses_for("ads-49999.block.test"), blocked);
+        assert_eq!(hosts.addresses_for("ads-19999.block.test"), blocked);
         assert_eq!(hosts.addresses_for("notneedle.block.test"), None);
         assert_eq!(hosts.addresses_for("unrelated.test"), None);
     }
