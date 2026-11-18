@@ -1033,10 +1033,18 @@ validate_config_candidate() {
 	chmod 0600 "$validation_file" || { rm -f "$validation_file"; return 1; }
 	if "$CORE" config validate --config "$config_candidate" > "$validation_file" 2>/dev/null; then
 		config_validation=$(cat "$validation_file")
-		json_load "$config_validation" 2>/dev/null || { rm -f "$validation_file"; return 1; }
-		json_get_var validation_ok ok
 		rm -f "$validation_file"
-		[ "$validation_ok" = 1 ] || return 1
+		# 增强版 core 用退出码表示校验结果，只输出 {"runtime":{...}}（见 lib.rs
+		# config validate，上游 init 脚本也是靠退出码启动的）；旧版 core 会额外带
+		# ok=1。rpcd 下游与前端 isOk() 都要求 ok 字段，缺失时补上，同时保留
+		# runtime 字段给界面展示。用纯字符串处理，避免污染调用方的 jshn 状态。
+		if ! printf '%s' "$config_validation" | grep -q '"ok"'; then
+			validation_rest=${config_validation#\{}
+			case "$validation_rest" in
+				\}) config_validation='{"ok":true}' ;;
+				*)  config_validation=$(printf '{"ok":true,%s' "$validation_rest") ;;
+			esac
+		fi
 		return 0
 	fi
 	config_validation=$(cat "$validation_file")

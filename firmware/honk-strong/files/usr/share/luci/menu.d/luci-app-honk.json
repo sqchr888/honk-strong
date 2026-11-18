@@ -17,14 +17,6 @@
 			"path": "honk/overview"
 		}
 	},
-	"admin/services/honk/dashboard": {
-		"title": "控制面板",
-		"order": 12,
-		"action": {
-			"type": "view",
-			"path": "honk/dashboard"
-		}
-	},
 	"admin/services/honk/adblock": {
 		"title": "广告拦截",
 		"order": 25,
