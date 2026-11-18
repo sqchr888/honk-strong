@@ -7,7 +7,7 @@
 . /lib/functions.sh
 
 UCI_CONFIG=honk-dns
-ENGINE=/usr/libexec/honk-dns/dns-engine.sh
+ENGINE=/usr/libexec/dns-engine.sh
 
 # This firmware's jshn json_add_boolean renders non-numeric values (e.g. the
 # string "true") as false; only 1/0 work. Normalize all booleans through here.

@@ -15,7 +15,7 @@
 . /lib/functions.sh
 
 UCI_CONFIG=honk-adblock
-GEN=/usr/libexec/honk-adblock/geosite_gen.lua
+GEN=/usr/libexec/geosite_gen.lua
 STAGE_ROOT=/tmp/honk-adblock
 DAT_STAGE=$STAGE_ROOT/merged.txt
 DAT_OUT=/etc/honk/honk-ads.dat

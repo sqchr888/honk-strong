@@ -6,7 +6,7 @@
 . /lib/functions.sh
 
 UCI_CONFIG=honk-adblock
-ENGINE=/usr/libexec/honk-adblock/adblock-engine.sh
+ENGINE=/usr/libexec/adblock-engine.sh
 
 # This firmware's jshn json_add_boolean treats any non-numeric value (e.g. the
 # string "true") as false; only 1/0 render correctly. Normalize every boolean
