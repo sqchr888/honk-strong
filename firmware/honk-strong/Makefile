@@ -39,6 +39,18 @@ Self-contained enhanced honk (v0.1.0-beta.6):
 Requires kernel BTF (/sys/kernel/btf/vmlinux) and kmod-sched-bpf at runtime.
 endef
 
+# conffiles：这些是用户可改配置，固件升级时必须保留，不能被新包覆盖。
+# 关键：/etc/honk/config.dae 必须声明为 conffile —— control.sh 的 check_config()
+# 强制要求它是普通文件，否则 diagnose 统一报 invalid_package_config
+# （"软件包配置不完整，请重新安装"）。缺了这条声明/安装，新刷固件一定会报该错。
+define Package/honk-strong/conffiles
+/etc/config/honk
+/etc/config/honk-adblock
+/etc/config/honk-dns
+/etc/honk/config.dae
+/etc/honk/system.dae
+endef
+
 HONK_BIN:=$(CURDIR)/target/aarch64-unknown-linux-musl/release/honk-core
 HONK_FILES:=./files
 
@@ -70,7 +82,12 @@ define Package/honk-strong/install
 	$(INSTALL_DATA) $(HONK_FILES)/etc/config/honk-adblock $(1)/etc/config/honk-adblock
 	$(INSTALL_DATA) $(HONK_FILES)/etc/config/honk-dns $(1)/etc/config/honk-dns
 	$(INSTALL_DIR) $(1)/etc/honk
-	$(INSTALL_DATA) $(HONK_FILES)/etc/honk/system.dae $(1)/etc/honk/system.dae
+	# FIX: 主配置文件必须随包安装为 conffile。之前只装了 default-config.dae
+	# 到 /usr/share/honk/，漏了 /etc/honk/config.dae，导致新刷固件 check_config()
+	# 报 invalid_package_config（"软件包配置不完整，请重新安装"）。
+	# 用同一份 default-config.dae 作初始内容，避免维护两份。
+	$(INSTALL_CONF) $(HONK_FILES)/usr/share/honk/default-config.dae $(1)/etc/honk/config.dae
+	$(INSTALL_CONF) $(HONK_FILES)/etc/honk/system.dae $(1)/etc/honk/system.dae
 	chmod 0600 $(1)/etc/honk/system.dae
 	$(INSTALL_DIR) $(1)/etc/honk/state
 	chmod 0700 $(1)/etc/honk/state
