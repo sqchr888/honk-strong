@@ -122,7 +122,10 @@ mod tests {
     #[test]
     fn empty_token_disables_protocol() {
         // The test process should not have HONK_READY_TOKEN set.
-        if std::env::var("HONK_READY_TOKEN").unwrap_or_default().is_empty() {
+        if std::env::var("HONK_READY_TOKEN")
+            .unwrap_or_default()
+            .is_empty()
+        {
             assert!(read_env().is_none());
         }
     }

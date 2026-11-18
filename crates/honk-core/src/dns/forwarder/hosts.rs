@@ -688,11 +688,11 @@ mod tests {
 
         // Correctness: exact hit, dot-boundary subdomain hit, near-miss and
         // miss must all resolve the same way regardless of internal structure.
-        let blocked = |ip: IpAddr| Some(std::slice::from_ref(&ip));
         let zero = IpAddr::V4(Ipv4Addr::UNSPECIFIED);
-        assert_eq!(hosts.addresses_for("needle.block.test"), blocked(zero));
-        assert_eq!(hosts.addresses_for("x.needle.block.test"), blocked(zero));
-        assert_eq!(hosts.addresses_for("ads-49999.block.test"), blocked(zero));
+        let zero_ref = std::slice::from_ref(&zero);
+        assert_eq!(hosts.addresses_for("needle.block.test"), Some(zero_ref));
+        assert_eq!(hosts.addresses_for("x.needle.block.test"), Some(zero_ref));
+        assert_eq!(hosts.addresses_for("ads-49999.block.test"), Some(zero_ref));
         assert_eq!(hosts.addresses_for("notneedle.block.test"), None);
         assert_eq!(hosts.addresses_for("unrelated.test"), None);
     }
