@@ -18,6 +18,10 @@ PKG_MAINTAINER:=sqchr888
 # 二进制：预编译 aarch64 musl 产物（含 eBPF BTF），由 CI 注入到
 #   $(CURDIR)/target/aarch64-unknown-linux-musl/release/honk-core。
 
+# po2lmo 需要 luci-base/host（上游 luci-app-honk 同样依赖它），否则编译期
+# 找不到 po2lmo 命令，中文翻译无法编译，界面会退回英文 msgid。
+PKG_BUILD_DEPENDS:=luci-base/host
+
 include $(INCLUDE_DIR)/package.mk
 
 define Package/honk-strong
@@ -26,7 +30,7 @@ define Package/honk-strong
   TITLE:=Enhanced honk (self-contained: adblock + DNS split + Doona + LuCI)
   DEPENDS:=+ca-certificates +kmod-nfnetlink +kmod-nft-queue +kmod-sched-core \
            +kmod-sched-bpf +kmod-veth +ip-full +luci-base +rpcd +cgi-io \
-           +jsonfilter +jshn +lua
+           +jsonfilter +jshn +lua +v2ray-geoip +v2ray-geosite
   PROVIDES:=honk
 endef
 
@@ -56,6 +60,8 @@ HONK_FILES:=./files
 
 define Build/Prepare
 	mkdir -p $(PKG_BUILD_DIR)
+	# FIX: 编译中文翻译。缺这步则 luci-app-honk 页面全部显示英文 msgid。
+	po2lmo ./po/zh-cn/honk.po $(PKG_BUILD_DIR)/honk.zh-cn.lmo
 endef
 
 define Build/Compile
@@ -139,6 +145,10 @@ define Package/honk-strong/install
 	# ---- LuCI JS views (includes enhanced adblock/dns + js-yaml vendor) ----
 	$(INSTALL_DIR) $(1)/www/luci-static/resources/view/honk
 	$(CP) $(HONK_FILES)/www/luci-static/resources/view/honk/* $(1)/www/luci-static/resources/view/honk/
+
+	# ---- 中文翻译 lmo（FIX: 之前缺失导致界面全英文） ----
+	$(INSTALL_DIR) $(1)/usr/lib/lua/luci/i18n
+	$(INSTALL_DATA) $(PKG_BUILD_DIR)/honk.zh-cn.lmo $(1)/usr/lib/lua/luci/i18n/honk.zh-cn.lmo
 endef
 
 define Package/honk-strong/postinst

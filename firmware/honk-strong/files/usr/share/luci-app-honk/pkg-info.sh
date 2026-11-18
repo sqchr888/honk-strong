@@ -1,12 +1,13 @@
 #!/bin/sh
 # SPDX-License-Identifier: GPL-3.0-only
-# pkg-info.sh <honk|luci-app-honk>
+# pkg-info.sh <honk-strong|honk|luci-app-honk>
 # Prints "<installed>\t<latest>" for the named package, either field empty when
 # unknown. Used by the Maintenance view to decide whether to enable [升级].
+# FIX: 增强版自包含包名为 honk-strong，需一并接受，否则面板探测不到报红叉。
 
 PKG="$1"
 case "$PKG" in
-	honk|luci-app-honk) ;;
+	honk-strong|honk|luci-app-honk) ;;
 	*) printf '\t\n'; exit 64 ;;
 esac
 

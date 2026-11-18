@@ -10,12 +10,13 @@ TYPE="$1"
 # honk.main.geoip_url / geosite_url (empty falls back to the default below).
 case "$TYPE" in
 	geoip)
-		DEF_URL="https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geoip.dat"
+		# FIX: 默认走 ghfast.top 镜像（国内直连 github.com 不通）。
+		DEF_URL="https://ghfast.top/https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geoip.dat"
 		URL="$(uci -q get honk.main.geoip_url)"
 		DEST="/usr/share/v2ray/geoip.dat"
 		;;
 	geosite)
-		DEF_URL="https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geosite.dat"
+		DEF_URL="https://ghfast.top/https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geosite.dat"
 		URL="$(uci -q get honk.main.geosite_url)"
 		DEST="/usr/share/v2ray/geosite.dat"
 		;;

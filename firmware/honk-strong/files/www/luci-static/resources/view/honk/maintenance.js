@@ -15,8 +15,10 @@ const UPDATE_PKG = '/usr/share/luci-app-honk/update-pkg.sh';
 const REFRESH_INDEX = '/usr/share/luci-app-honk/refresh-index.sh';
 const UPDATE_GEO = '/usr/share/luci-app-honk/update-geo.sh';
 const GEO_CRON = '/usr/share/luci-app-honk/geo-cron.sh';
-const PKGS = [ 'honk', 'luci-app-honk' ];
-const PKG_NAMES = { honk: 'Honk', 'luci-app-honk': 'luci-app-honk' };
+// FIX: 增强版是单个自包含包 honk-strong，不是上游的 honk + luci-app-honk 两个包。
+// 探测旧包名会一律查不到，卡片显示红叉「未通过软件包管理器安装」。改探实际包名。
+const PKGS = [ 'honk-strong' ];
+const PKG_NAMES = { 'honk-strong': 'Honk 增强版（固件内置）' };
 
 const DATA_PATHS = {
 	geoip: '/usr/share/v2ray/geoip.dat',
@@ -28,8 +30,9 @@ const DATA_PATHS = {
 const GEO_PRESETS = {
 	loyalsoldier: { geoip: '', geosite: '' },
 	v2fly: {
-		geoip: 'https://github.com/v2fly/geoip/releases/latest/download/geoip.dat',
-		geosite: 'https://github.com/v2fly/domain-list-community/releases/latest/download/dlc.dat'
+		// 走 ghfast.top 镜像（国内直连 github.com 不通）
+		geoip: 'https://ghfast.top/https://github.com/v2fly/geoip/releases/latest/download/geoip.dat',
+		geosite: 'https://ghfast.top/https://github.com/v2fly/domain-list-community/releases/latest/download/dlc.dat'
 	}
 };
 
