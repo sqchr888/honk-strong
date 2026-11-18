@@ -652,10 +652,10 @@ pub(crate) const GEOSITE_OVERLAY_NAME: &str = "honk-ads.dat";
 /// unreadable means "no custom rules" and must never break normal geosite load.
 fn geosite_overlay_bytes() -> Vec<u8> {
     let mut path = honk_config::paths::data_dir().join(GEOSITE_OVERLAY_NAME);
-    if !path.is_file() {
-        if let Ok(dir) = std::env::var("DAE_LOCATION_ASSET") {
-            path = std::path::Path::new(&dir).join(GEOSITE_OVERLAY_NAME);
-        }
+    if !path.is_file()
+        && let Ok(dir) = std::env::var("DAE_LOCATION_ASSET")
+    {
+        path = std::path::Path::new(&dir).join(GEOSITE_OVERLAY_NAME);
     }
     match std::fs::read(&path) {
         Ok(bytes) => {
@@ -1665,8 +1665,8 @@ mod scan_tests {
             ("OVERRIDE", vec![domain_msg(1, "old.example", &[])]),
         ]);
         let overlay = geosite_dat(&[
-            ("HONK-ADS", vec![domain_msg(1, "ads.example", &[])]),
-            ("OVERRIDE", vec![domain_msg(1, "new.example", &[])]),
+            ("HONK-ADS", vec![domain_msg(3, "ads.example", &[])]),
+            ("OVERRIDE", vec![domain_msg(3, "new.example", &[])]),
         ]);
         let codes = ["keep", "honk-ads", "override"]
             .into_iter()

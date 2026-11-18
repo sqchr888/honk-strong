@@ -35,9 +35,10 @@ const HOSTS_TTL_SECS: u32 = 60;
 ///
 /// Patterns are now indexed by kind, mirroring `routing::domain::GeositeMatcher`:
 ///   * bare / `full:` -> `entries` (exact HashMap, O(1))
-///   * `domain:`      -> `suffix` (HashMap + dot-boundary parent walk, O(labels))
-///   * `keyword:`     -> AhoCorasick automaton (O(len(domain)))
-///   * `regexp:`      -> Vec (rare; kept linear, bounded by rule count)
+///     * `domain:`      -> `suffix` (HashMap + dot-boundary parent walk, O(labels))
+///     * `keyword:`     -> AhoCorasick automaton (O(len(domain)))
+///     * `regexp:`      -> Vec (rare; kept linear, bounded by rule count)
+///
 /// Insertion is O(1) per rule for the three indexed kinds, so building a
 /// 270k-entry list is linear and lookup never scans the whole set.
 #[derive(Debug, Default)]
@@ -689,10 +690,12 @@ mod tests {
         // Correctness: exact hit, dot-boundary subdomain hit, near-miss and
         // miss must all resolve the same way regardless of internal structure.
         let zero = IpAddr::V4(Ipv4Addr::UNSPECIFIED);
-        let zero_ref = std::slice::from_ref(&zero);
-        assert_eq!(hosts.addresses_for("needle.block.test"), Some(zero_ref));
-        assert_eq!(hosts.addresses_for("x.needle.block.test"), Some(zero_ref));
-        assert_eq!(hosts.addresses_for("ads-49999.block.test"), Some(zero_ref));
+        let unspecified_v6 = IpAddr::V6(Ipv6Addr::UNSPECIFIED);
+        let both = [zero, unspecified_v6];
+        let blocked = Some(&both[..]);
+        assert_eq!(hosts.addresses_for("needle.block.test"), blocked);
+        assert_eq!(hosts.addresses_for("x.needle.block.test"), blocked);
+        assert_eq!(hosts.addresses_for("ads-49999.block.test"), blocked);
         assert_eq!(hosts.addresses_for("notneedle.block.test"), None);
         assert_eq!(hosts.addresses_for("unrelated.test"), None);
     }

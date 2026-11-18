@@ -127,7 +127,7 @@ pub(super) async fn import(
 
     let data_dir = honk_config::paths::data_dir();
     let source = std::path::PathBuf::from(&pointer.path);
-    if !permitted(&source, &data_dir) {
+    if !permitted(&source, data_dir) {
         return Err(unsupported(
             "Overlay path is outside the permitted directories.",
         ));
@@ -147,10 +147,10 @@ pub(super) async fn import(
             .iter()
             .map(|byte| format!("{byte:02x}"))
             .collect::<String>();
-        if let Some(expected) = &expected {
-            if !expected.eq_ignore_ascii_case(&sha256) {
-                return Err(());
-            }
+        if let Some(expected) = &expected
+            && !expected.eq_ignore_ascii_case(&sha256)
+        {
+            return Err(());
         }
         validate_overlay(&bytes).map_err(|_| ())?;
         let final_path = data_dir.join(GEOSITE_OVERLAY_NAME);
